@@ -1,0 +1,44 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Clasificador de Insectos</title>
+    <script>
+        function clasificarInsecto(event) {
+            event.preventDefault();
+            const abdomen = document.getElementById('abdomen').value;
+            const antena = document.getElementById('antena').value;
+
+            fetch('/predict', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/x-www-form-urlencoded',
+                },
+                body: `abdomen=${abdomen}&antena=${antena}`,
+            })
+            .then(response => response.json())
+            .then(data => {
+                if (data.error) {
+                    document.getElementById('resultado').innerText = 'Error: ' + data.error;
+                } else {
+                    document.getElementById('resultado').innerText = 'El insecto es un/a ' + data.categoria;
+                }
+            })
+            .catch(error => {
+                document.getElementById('resultado').innerText = 'Error en la solicitud.';
+                console.error('Error:', error);
+            });
+        }
+    </script>
+</head>
+<body>
+    <h1>Clasificador de Insectos</h1>
+    <form id="formulario" onsubmit="clasificarInsecto(event)">
+        <label for="abdomen">Longitud del Abdomen:</label>
+        <input type="text" id="abdomen" name="abdomen"><br><br>
+        <label for="antena">Longitud de las Antenas:</label>
+        <input type="text" id="antena" name="antena"><br><br>
+        <input type="submit" value="Enviar">
+    </form>
+    <p id="resultado"></p>
+</body>
+</html>
