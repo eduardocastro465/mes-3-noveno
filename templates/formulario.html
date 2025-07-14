@@ -1,44 +1,195 @@
 <!DOCTYPE html>
-<html>
-<head>
-    <title>Clasificador de Insectos</title>
-    <script>
-        function clasificarInsecto(event) {
-            event.preventDefault();
-            const abdomen = document.getElementById('abdomen').value;
-            const antena = document.getElementById('antena').value;
+<html lang="es">
+  <head>
+    <meta charset="UTF-8" />
+    <title>Predicción Titanic</title>
+    <style>
+      body {
+        font-family: "Segoe UI", sans-serif;
+        background: #f0f2f5;
+        color: #333;
+        display: flex;
+        justify-content: center;
+        padding: 40px;
+      }
+      .card {
+        background-color: #fff;
+        padding: 30px 40px;
+        border-radius: 10px;
+        box-shadow: 0 4px 20px rgba(0, 0, 0, 0.1);
+        max-width: 500px;
+        width: 100%;
+      }
+      h1 {
+        text-align: center;
+        margin-bottom: 25px;
+        color: #2c3e50;
+      }
+      label {
+        display: block;
+        margin-bottom: 6px;
+        font-weight: bold;
+      }
+      input,
+      select {
+        width: 100%;
+        padding: 10px;
+        border: 1px solid #ddd;
+        border-radius: 6px;
+        margin-bottom: 15px;
+        box-sizing: border-box;
+      }
+      .sibsp-group {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .sibsp-group button {
+        padding: 8px 12px;
+        background-color: #3498db;
+        color: white;
+        border: none;
+        border-radius: 5px;
+        cursor: pointer;
+      }
+      .sibsp-group button:hover {
+        background-color: #2980b9;
+      }
+      input[type="submit"] {
+        background-color: #27ae60;
+        color: white;
+        font-weight: bold;
+        font-size: 16px;
+        cursor: pointer;
+        transition: 0.3s;
+      }
+      input[type="submit"]:hover {
+        background-color: #1e8449;
+      }
+      #resultado {
+        text-align: center;
+        font-size: 18px;
+        margin-top: 20px;
+        font-weight: bold;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <h1>Predicción Titanic</h1>
+      <form id="formulario" onsubmit="predecir(event)">
+        <label for="Nombre">Nombre completo (ej: Braund, Mr. Owen):</label>
+        <input type="text" name="Nombre" required pattern=".+,\s*\w+\..*" />
 
-            fetch('/predict', {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/x-www-form-urlencoded',
-                },
-                body: `abdomen=${abdomen}&antena=${antena}`,
-            })
-            .then(response => response.json())
-            .then(data => {
-                if (data.error) {
-                    document.getElementById('resultado').innerText = 'Error: ' + data.error;
-                } else {
-                    document.getElementById('resultado').innerText = 'El insecto es un/a ' + data.categoria;
-                }
-            })
-            .catch(error => {
-                document.getElementById('resultado').innerText = 'Error en la solicitud.';
-                console.error('Error:', error);
-            });
+        <label for="Sex">Sexo:</label>
+        <select name="Sex" required>
+          <option value="">-- Selecciona --</option>
+          <option value="male">Masculino</option>
+          <option value="female">Femenino</option>
+        </select>
+
+        <label for="Fare">Tarifa (Fare):</label>
+        <input type="number" name="Fare" step="0.01" required min="0" />
+
+        <label for="Age">Edad:</label>
+        <div class="sibsp-group">
+          <button type="button" onclick="ajustarEdad(-1)">−</button>
+          <input
+            type="number"
+            name="Age"
+            id="Age"
+            value="30"
+            min="0"
+            step="1"
+            required
+          />
+          <button type="button" onclick="ajustarEdad(1)">+</button>
+        </div>
+
+        <label for="Pclass">Clase:</label>
+        <select name="Pclass" required>
+          <option value="">-- Selecciona --</option>
+          <option value="1">Primera</option>
+          <option value="2">Segunda</option>
+          <option value="3">Tercera</option>
+        </select>
+
+        <label for="FamilySize">Tamaño Familiar:</label>
+        <input type="number" name="FamilySize" required min="1" />
+
+        <label for="SibSp">Hermanos/Pareja a bordo (SibSp):</label>
+        <div class="sibsp-group">
+          <button type="button" onclick="ajustarSibSp(-1)">−</button>
+          <input
+            type="number"
+            name="SibSp"
+            id="SibSp"
+            value="0"
+            min="0"
+            required
+          />
+          <button type="button" onclick="ajustarSibSp(1)">+</button>
+        </div>
+        <label for="Parch">Padres/Hijos a bordo (Parch):</label>
+        <input type="number" name="Parch" required min="0" value="0" />
+
+        <input type="hidden" name="Title" />
+        <input type="submit" value="Predecir" />
+      </form>-
+      <p id="resultado"></p>
+    </div>
+
+    <script>
+      function extraerTitulo(nombre) {
+        const match = nombre.match(/,\s*(\w+)\./);
+        return match ? match[1] : "";
+      }
+
+      function ajustarSibSp(cambio) {
+        const input = document.getElementById("SibSp");
+        const actual = parseInt(input.value) || 0;
+        input.value = Math.max(0, actual + cambio);
+      }
+
+      function ajustarEdad(cambio) {
+        const input = document.getElementById("Age");
+        const actual = parseInt(input.value) || 0;
+        input.value = Math.max(0, actual + cambio);
+      }
+
+      function predecir(event) {
+        event.preventDefault();
+        const form = document.getElementById("formulario");
+        const nombre = form.Nombre.value;
+        const titulo = extraerTitulo(nombre);
+
+        if (!titulo) {
+          document.getElementById("resultado").innerText =
+            "⚠️ Ingresa un nombre con título válido (ej: Smith, Mr. John)";
+          return;
         }
+
+        const formData = new URLSearchParams(new FormData(form));
+        formData.set("Title", titulo);
+
+        fetch("/predict", {
+          method: "POST",
+          headers: { "Content-Type": "application/x-www-form-urlencoded" },
+          body: formData,
+        })
+          .then((res) => res.json())
+          .then((data) => {
+            const result = document.getElementById("resultado");
+            result.innerText = data.error
+              ? "❌ Error: " + data.error
+              : "✅ Resultado: " + data.resultado;
+          })
+          .catch((err) => {
+            document.getElementById("resultado").innerText =
+              "❌ Error en la solicitud.";
+            console.error(err);
+          });
+      }
     </script>
-</head>
-<body>
-    <h1>Clasificador de Insectos</h1>
-    <form id="formulario" onsubmit="clasificarInsecto(event)">
-        <label for="abdomen">Longitud del Abdomen:</label>
-        <input type="text" id="abdomen" name="abdomen"><br><br>
-        <label for="antena">Longitud de las Antenas:</label>
-        <input type="text" id="antena" name="antena"><br><br>
-        <input type="submit" value="Enviar">
-    </form>
-    <p id="resultado"></p>
-</body>
+  </body>
 </html>
