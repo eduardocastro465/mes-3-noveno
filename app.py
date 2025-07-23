@@ -1,71 +1,61 @@
-from flask import Flask, request, render_template, jsonify
-import joblib
+from flask import Flask, request, jsonify
 import pandas as pd
-import logging
+import joblib
 
 app = Flask(__name__)
-logging.basicConfig(level=logging.DEBUG)
 
-# Cargar modelos y transformadores
-model = joblib.load('modelo_random_forest.pkl')
-scaler = joblib.load('scaler.pkl')
-pca = joblib.load('pca.pkl')
-encoder = joblib.load('encoder.pkl')
+# Cargar modelos
+rules_df = joblib.load('rules.pkl')
+df_transacciones = pd.read_csv('atelier-datshet-2024-transacciones.csv')  # Asegúrate que sea el mismo nombre exacto
 
-@app.route('/')
-def home():
-    return render_template('formulario.html')
+# Función de recomendación
+def recomendar_por_similitud(atributos_elegidos, rules_df, df, n=3):
+    if not rules_df.empty:
+        mejores_reglas = []
+        for _, row in rules_df.iterrows():
+            antecedent = set(row['antecedents'])
+            coincidencias = len(antecedent.intersection(atributos_elegidos))
+            if coincidencias > 0:
+                mejores_reglas.append((row, coincidencias))
 
-@app.route('/predict', methods=['POST'])
-def predict():
+        if mejores_reglas:
+            mejores_reglas.sort(key=lambda x: (x[1], x[0]['lift'], x[0]['confidence']), reverse=True)
+            mejor_regla = mejores_reglas[0][0]
+            recomendaciones = list(set(mejor_regla['consequents']) - atributos_elegidos)
+            return recomendaciones[:n], 'regla_mas_similar'
+
+    # Fallback con atributos más frecuentes
+    columnas = ['producto_talla', 'producto_color', 'producto_temporada', 'vestido_estilo', 'vestido_condicion']
+    valores = []
+    for col in columnas:
+        if col in df.columns:
+            valores.extend(df[col].dropna().apply(lambda x: f"{col}_{x}"))
+    populares = pd.Series(valores).value_counts().index.tolist()
+    recomendaciones = [a for a in populares if a not in atributos_elegidos][:n]
+    return recomendaciones, 'atributos_populares'
+
+# Endpoint de recomendación
+@app.route('/api/recomendar-atributos', methods=['POST'])
+def recomendar():
+    datos = request.json
     try:
-        # Obtener datos del formulario
-        input_data = {
-            'Name': request.form['Nombre'],
-            'Sex': request.form['Sex'],
-            'Fare': float(request.form['Fare']),
-            'Age': float(request.form['Age']),
-            'Pclass': int(request.form['Pclass']),
-            'FamilySize': int(request.form['FamilySize']),
-            'SibSp': int(request.form['SibSp']),
-            'Parch': int(request.form['Parch']),
-            'Embarked': 'S',  # Valor por defecto (puedes cambiarlo)
-            'Cabin': '1',      # Valor por defecto
-            'Ticket': '12345', # Valor por defecto
-        }
+        atributos = frozenset([
+            f"producto_talla_{datos['producto_talla']}",
+            f"producto_color_{datos['producto_color']}",
+            f"producto_temporada_{datos['producto_temporada']}",
+            f"vestido_estilo_{datos['vestido_estilo']}",
+            f"vestido_condicion_{datos['vestido_condicion']}"
+        ])
+    except KeyError as e:
+        return jsonify({'error': f'Falta el atributo: {str(e)}'}), 400
 
-        # Añadir Title
-        input_data['Title'] = request.form['Title']
-        input_data['Name'] = input_data['Title']
+    recomendaciones, metodo = recomendar_por_similitud(atributos, rules_df, df_transacciones)
 
-
-        # Formatear columnas en orden correcto
-        columnas_modelo = ['Name','Sex', 'Embarked', 'Cabin', 'Ticket', 'Pclass', 'Fare', 'SibSp', 'Parch', 'Age']
-        df = pd.DataFrame([input_data])
-        for col in ['Embarked', 'Cabin', 'Ticket']:  # Si faltan, agregar valores ficticios
-            if col not in df.columns:
-                df[col] = '0'
-
-        # Aplicar encoder ordinal a las columnas categóricas
-        columnas_categoricas = ['Name','Sex', 'Embarked', 'Cabin', 'Ticket']
-        df[columnas_categoricas] = encoder.transform(df[columnas_categoricas])
-
-        # Seleccionar las columnas usadas para PCA y predicción
-        df_modelo = df[['Pclass', 'Sex', 'Age', 'SibSp']]
-
-        # Escalar y aplicar PCA
-        df_scaled = scaler.transform(df_modelo)
-        df_pca = pca.transform(df_scaled)
-
-        # Predecir
-        prediction = model.predict(df_pca)[0]
-        resultado = 'Sobrevivió' if prediction == 1 else 'No sobrevivió'
-
-        return jsonify({'resultado': resultado})
-
-    except Exception as e:
-        app.logger.error(f'Error en la predicción: {str(e)}')
-        return jsonify({'error': str(e)}), 400
+    return jsonify({
+        'input_atributos': list(atributos),
+        'recomendaciones': recomendaciones,
+        'metodo': metodo
+    })
 
 if __name__ == '__main__':
-    app.run(debug=True)
+    app.run(debug=True, port=5000)
