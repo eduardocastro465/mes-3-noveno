@@ -114,7 +114,7 @@ def encontrar_vestidos_por_atributos(df_original, atributos_recomendados, exclui
 @app.route('/recomendar', methods=['POST'])
 def recomendar_productos():
     """
-    Recibe un JSON con los atributos del producto y devuelve recomendaciones con ID, nombre, rating e ID de transacción.
+    Recibe un JSON con los atributos del producto y devuelve una lista de nombres de productos.
     """
     try:
         # 1. Obtener los datos del JSON
@@ -122,8 +122,7 @@ def recomendar_productos():
         if not data:
             return jsonify({"success": False, "mensaje": "Se esperaba un cuerpo JSON."}), 400
 
-        required_fields = ['producto_nombre', 'producto_talla', 'producto_color', 
-                          'producto_temporada', 'vestido_estilo', 'vestido_condicion']
+        required_fields = ['producto_nombre', 'producto_talla', 'producto_color', 'producto_temporada', 'vestido_estilo', 'vestido_condicion']
         if not all(field in data for field in required_fields):
             return jsonify({"success": False, "mensaje": "Faltan campos requeridos en el JSON."}), 400
 
@@ -153,18 +152,9 @@ def recomendar_productos():
             excluidos=[datos_transaccion['producto_nombre']]
         )
         
-        # 5. Preparar la respuesta JSON con detalles completos
+        # 5. Preparar la respuesta JSON con los nombres de los productos
         if not vestidos_recomendados.empty:
-            recomendaciones_lista = []
-            for _, row in vestidos_recomendados.iterrows():
-                recomendacion = {
-                    "producto_id": row['producto_id'],
-                    "producto_nombre": row['producto_nombre'],
-                    "transaccion_id": row.get('transaccion_id', 'N/A'),  # Asegúrate de que esta columna exista
-                    "vestido_rating_promedio": row.get('vestido_rating_promedio', 'N/A')                   # Asegúrate de que esta columna exista
-                }
-                recomendaciones_lista.append(recomendacion)
-            
+            recomendaciones_lista = vestidos_recomendados['producto_nombre'].tolist()
             mensaje = "¡Aquí tienes algunas recomendaciones basadas en tu compra!"
         else:
             recomendaciones_lista = []
@@ -174,7 +164,7 @@ def recomendar_productos():
             "success": True,
             "mensaje": mensaje,
             "metodo_usado": metodo,
-            "recomendaciones": recomendaciones_lista  # Cambiado de 'productos_recomendados' a 'recomendaciones'
+            "productos_recomendados": recomendaciones_lista
         })
 
     except Exception as e:
@@ -182,8 +172,9 @@ def recomendar_productos():
         return jsonify({
             "success": False,
             "mensaje": f"Ocurrió un error: {e}",
-            "recomendaciones": []
+            "productos_recomendados": []
         }), 500
+
 if __name__ == '__main__':
     # Para producción, se recomienda no usar debug=True
     app.run(debug=True)
